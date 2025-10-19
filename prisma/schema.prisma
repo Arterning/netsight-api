@@ -1,0 +1,132 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Asset {
+  id                    String             @id @default(cuid())
+  ip                    String
+  url                   String             @unique
+  domain                String?
+  status                String             @default("Active")
+  openPorts             String?
+  valuePropositionScore Int                @default(0)
+  summary               String?
+  geolocation           String?
+  services              String?
+  networkTopology       String?
+  taskName              String
+  name                  String? // 资产名称
+  description           String? // 资产描述
+  keywords              String? // 关键词
+  tags                  String? // 标签
+  owner                 String? // 资产所有者
+  department            String? // 所属部门
+  imageBase64           String? // 资产图片的Base64编码
+  metadata              Json? // 其他元数据
+  sensitivePages        Json?
+  favicon               String?
+  priority              String             @default("Medium") // Low, Medium, High, Critical
+  isDeleted             Boolean            @default(false) // 软删除标记
+  techReport            String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  taskExecutionId       String?
+  taskExecution         TaskExecution?     @relation(fields: [taskExecutionId], references: [id])
+  webpages              Webpage[]
+  sitemapXml            String? // 存储sitemap.xml内容
+  sourceAssociations    AssetAssociation[] @relation("SourceAsset")
+  targetAssociations    AssetAssociation[] @relation("TargetAsset")
+  apiEndpoints          ApiEndpoint[]
+}
+
+model Webpage {
+  id              String   @id @default(cuid())
+  url             String
+  title           String?
+  content         String?
+  htmlContent     String?
+  vulnerabilities String? // 存储漏洞信息
+  imageBase64     String? // 资产图片的Base64编码
+  metadata        Json? // 其他元数据
+  isHomepage      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  assetId         String
+  asset           Asset    @relation(fields: [assetId], references: [id])
+
+  @@unique([assetId, url])
+  @@index([assetId])
+}
+
+model ScheduledTask {
+  id           String          @id @default(cuid())
+  name         String // 任务名称
+  description  String? // 任务描述
+  ipRange      String? // IP范围
+  domain       String? // 域名
+  scanRate     String // 扫描速率
+  scheduleType String // 执行周期:once, daily, weekly, every3days, monthly
+  isActive     Boolean         @default(true) // 任务是否激活
+  nextRunAt    DateTime? // 下次执行时间
+  lastRunAt    DateTime? // 上次执行时间
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  executions   TaskExecution[]
+}
+
+model TaskExecution {
+  id              String        @id @default(cuid())
+  scheduledTaskId String
+  scheduledTask   ScheduledTask @relation(fields: [scheduledTaskId], references: [id])
+  status          String // 执行状态:waiting, running, completed, failed
+  startTime       DateTime? // 开始时间
+  endTime         DateTime? // 结束时间
+  duration        Int? // 执行时长(秒)
+  stage           String? // 当前执行阶段
+  errorMessage    String? // 错误信息
+  assetsFound     Int           @default(0) // 发现的资产数量
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  assets          Asset[]
+}
+
+model AssetAssociation {
+  id            String   @id @default(cuid())
+  sourceAssetId String
+  targetAssetId String
+  sourceUrl     String
+  targetUrl     String
+  createdAt     DateTime @default(now())
+
+  sourceAsset Asset @relation("SourceAsset", fields: [sourceAssetId], references: [id])
+  targetAsset Asset @relation("TargetAsset", fields: [targetAssetId], references: [id])
+}
+
+model ApiEndpoint {
+  id          String   @id @default(cuid())
+  url         String   // 接口请求的完整URL
+  method      String   // HTTP方法 (GET, POST, PUT, DELETE等)
+  type        String   // 请求类型 (XHR, Fetch, WebSocket等)
+  status      Int?     // 响应状态码
+  headers     Json?    // 请求头信息
+  requestBody Json?    // 请求体内容
+  response    Json?    // 响应内容(可选,可能很大)
+  responseSize Int?    // 响应大小(字节)
+  duration    Int?     // 请求耗时(毫秒)
+  fromPage    String   // 发起请求的页面URL
+  createdAt   DateTime @default(now())
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+  @@index([url])
+}
