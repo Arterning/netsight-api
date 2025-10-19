@@ -25,7 +25,7 @@ interface ApiRequest {
   headers?: any;
   requestBody?: any;
   response?: any;
-  responseSize?: number;
+  responseSize?: number | null;
   duration?: number;
   fromPage: string;
 }
@@ -127,7 +127,7 @@ export class CrawlService {
           const endTime = Date.now();
           const duration = endTime - requestData.startTime;
 
-          let responseBody = null;
+          let responseBody: string | null = null;
           try {
             const contentLength = response.headers()['content-length'];
             if (contentLength && parseInt(contentLength) < 1024 * 1024) {
@@ -464,7 +464,7 @@ export class CrawlService {
       .filter((link) => !!link.href && !link.href.startsWith('javascript:') && !link.href.startsWith('#'))
       .map((link) => {
         try {
-          const absoluteUrl = new URL(link.href, baseUrl).href;
+          const absoluteUrl = new URL(link.href || '', baseUrl).href;
 
           const sensitivePage = detectSensitivePage(absoluteUrl, link.text);
           if (sensitivePage) {

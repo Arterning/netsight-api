@@ -148,10 +148,11 @@ export class TechCrawlService {
       const generatorMeta = document.querySelector('meta[name="generator"]') as HTMLMetaElement;
       if (generatorMeta) {
         const content = generatorMeta.content;
+        const versionMatch = content.match(/\d+\.\d+[\.\d]*/);
         software.push({
           category: '内容管理系统',
           name: content.split(' ')[0],
-          version: content.match(/\d+\.\d+[\.\d]*/) ? content.match(/\d+\.\d+[\.\d]*/)[0] : 'unknown',
+          version: versionMatch ? versionMatch[0] : 'unknown',
           purpose: '网站内容管理',
           vendor: 'unknown'
         });

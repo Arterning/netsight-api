@@ -39,9 +39,11 @@ export class ScanService {
       }
 
       // 启动异步扫描分析
-      this.performScan(taskExecutionId, scheduledTaskId, taskName, analysisTargets, scanDto).catch(err => {
-        console.error('Scan failed:', err);
-      });
+      if (taskExecutionId) {
+        this.performScan(taskExecutionId, scheduledTaskId, taskName, analysisTargets, scanDto).catch(err => {
+          console.error('Scan failed:', err);
+        });
+      }
 
       return { taskExecutionId: id, error: null };
     } catch (error) {
@@ -188,7 +190,7 @@ export class ScanService {
             name: homepageTitle,
             description,
             techReport,
-            sensitivePages,
+            sensitivePages: sensitivePages as any,
             valuePropositionScore: businessValueResult.valuePropositionScore,
             summary: analysisResult,
             geolocation,
@@ -413,7 +415,7 @@ export class ScanService {
   }
 
   private async createTaskExecution(scanDto: ScanDto) {
-    let scheduledTaskId = null;
+    let scheduledTaskId: string | null = null;
     if (scanDto.isScheduled && scanDto.scheduleType) {
       console.log('Creating scheduled task...');
     }
@@ -434,13 +436,18 @@ export class ScanService {
 
     const taskName = scanDto.taskName || `Scan_${new Date().toISOString()}`;
 
+    const executionData: any = {
+      status: 'running',
+      startTime: new Date(),
+      assetsFound: 0,
+    };
+
+    if (scheduledTaskId) {
+      executionData.scheduledTaskId = scheduledTaskId;
+    }
+
     const execution = await this.prisma.taskExecution.create({
-      data: {
-        scheduledTaskId,
-        status: 'running',
-        startTime: new Date(),
-        assetsFound: 0,
-      }
+      data: executionData
     });
 
     return { taskExecutionId: execution.id, scheduledTaskId, taskName };
