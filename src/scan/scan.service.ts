@@ -22,25 +22,34 @@ export class ScanService {
     private techCrawlService: TechCrawlService,
   ) {}
 
-  async scanAndAnalyze(scanDto: ScanDto): Promise<{ taskExecutionId: string | undefined; error: string | null }> {
+  async scanAndAnalyze(
+    scanDto: ScanDto,
+  ): Promise<{ taskExecutionId: string | undefined; error: string | null }> {
     let id: string | undefined = undefined;
 
     try {
-      const { taskExecutionId, scheduledTaskId, taskName } = await this.createTaskExecution(scanDto);
+      const { taskExecutionId, scheduledTaskId, taskName } =
+        await this.createTaskExecution(scanDto);
       id = taskExecutionId;
 
-      let analysisTargets: { type: 'ip' | 'url', value: string }[] = [];
+      let analysisTargets: { type: 'ip' | 'url'; value: string }[] = [];
 
       if (scanDto.url) {
         analysisTargets.push({ type: 'url', value: scanDto.url });
       } else if (scanDto.ipRange) {
         const activeIPs = this.getActiveIPsFromRange(scanDto.ipRange);
-        analysisTargets = activeIPs.map(ip => ({ type: 'ip', value: ip }));
+        analysisTargets = activeIPs.map((ip) => ({ type: 'ip', value: ip }));
       }
 
       // 启动异步扫描分析
       if (taskExecutionId) {
-        this.performScan(taskExecutionId, scheduledTaskId, taskName, analysisTargets, scanDto).catch(err => {
+        this.performScan(
+          taskExecutionId,
+          scheduledTaskId,
+          taskName || `Scan_${new Date().toISOString()}`,
+          analysisTargets,
+          scanDto,
+        ).catch((err) => {
           console.error('Scan failed:', err);
         });
       }
@@ -51,19 +60,22 @@ export class ScanService {
       if (id) {
         await this.prisma.taskExecution.update({
           where: { id },
-          data: { status: 'failed', stage: '任务失败' }
+          data: { status: 'failed', stage: '任务失败' },
         });
       }
-      return { taskExecutionId: id, error: 'Failed to complete analysis. Please try again.' };
+      return {
+        taskExecutionId: id,
+        error: 'Failed to complete analysis. Please try again.',
+      };
     }
   }
 
   private async performScan(
     taskExecutionId: string,
-    scheduledTaskId: string | null,
+    scheduledTaskId: string | null | undefined,
     taskName: string,
-    analysisTargets: { type: 'ip' | 'url', value: string }[],
-    scanDto: ScanDto
+    analysisTargets: { type: 'ip' | 'url'; value: string }[],
+    scanDto: ScanDto,
   ) {
     try {
       const analysisPromises = analysisTargets.map(async (target) => {
@@ -75,7 +87,9 @@ export class ScanService {
           const domain = new URL(displayUrl).hostname;
           const resolvedIp = await this.getIpFromDomain(domain);
           if (!resolvedIp) {
-            throw new Error(`Could not resolve IP for initial target domain: ${domain}`);
+            throw new Error(
+              `Could not resolve IP for initial target domain: ${domain}`,
+            );
           }
           ip = resolvedIp;
         } else {
@@ -129,10 +143,29 @@ export class ScanService {
           crawlDepth = 0;
         }
 
-        const crawlResult = await this.crawlWebsite(displayUrl, assetId, crawlDepth, taskExecutionId, scanDto.proxy);
-        const { urls: crawledUrls, sitemapXml, homepageTitle, homepageContent, homepageBase64Image, homepageMetaData, techReport, allPageContent, sensitivePages, faviconUrl } = crawlResult;
+        const crawlResult = await this.crawlWebsite(
+          displayUrl,
+          assetId ?? '',
+          crawlDepth,
+          taskExecutionId,
+          scanDto.proxy,
+        );
+        const {
+          urls: crawledUrls,
+          sitemapXml,
+          homepageTitle,
+          homepageContent,
+          homepageBase64Image,
+          homepageMetaData,
+          techReport,
+          allPageContent,
+          sensitivePages,
+          faviconUrl,
+        } = crawlResult;
 
-        console.log(`homepageTitle: ${homepageTitle}, homepageContent length: ${homepageContent.length}`);
+        console.log(
+          `homepageTitle: ${homepageTitle}, homepageContent length: ${homepageContent.length}`,
+        );
 
         // 2. 爬取后AI分析前,更新 stage
         if (taskExecutionId) {
@@ -143,20 +176,22 @@ export class ScanService {
         }
 
         // 分析内容 - TODO: 这里需要接入你的AI服务
-        const content = homepageTitle + allPageContent
-          ? allPageContent.replace(/<style[^>]*>.*?<\/style>/g, ' ')
-            .replace(/<script[^>]*>.*?<\/script>/g, ' ')
-            .replace(/<[^>]*>/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-          : '';
+        const content =
+          homepageTitle + allPageContent
+            ? allPageContent
+                .replace(/<style[^>]*>.*?<\/style>/g, ' ')
+                .replace(/<script[^>]*>.*?<\/script>/g, ' ')
+                .replace(/<[^>]*>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+            : '';
 
         // Placeholder for AI analysis - you need to implement these
         const analysisResult = `网站分析: ${homepageTitle}`;
         const businessValueResult = {
           valuePropositionScore: 50,
           analysis: '业务价值分析',
-          keywords: '关键词1, 关键词2'
+          keywords: '关键词1, 关键词2',
         };
         const associationResult = 'IP关联分析结果';
 
@@ -174,7 +209,7 @@ export class ScanService {
         const openPorts = await this.scanOpenPorts(hostname, portList);
         const openPortsStr = openPorts.join(', ');
 
-        let description = "";
+        let description = '';
         if (homepageMetaData.description) {
           description = homepageMetaData.description;
         } else if (homepageContent) {
@@ -223,11 +258,13 @@ export class ScanService {
         const endTime = new Date();
         const startTime = await this.prisma.taskExecution.findUnique({
           where: { id: taskExecutionId },
-          select: { startTime: true }
+          select: { startTime: true },
         });
 
         const duration = startTime?.startTime
-          ? Math.floor((endTime.getTime() - startTime.startTime.getTime()) / 1000)
+          ? Math.floor(
+              (endTime.getTime() - startTime.startTime.getTime()) / 1000,
+            )
           : null;
 
         await this.prisma.taskExecution.update({
@@ -237,10 +274,12 @@ export class ScanService {
             endTime,
             duration,
             assetsFound: results.length,
-          }
+          },
         });
 
-        console.log(`Task execution ${taskExecutionId} completed with ${results.length} assets found.`);
+        console.log(
+          `Task execution ${taskExecutionId} completed with ${results.length} assets found.`,
+        );
 
         // 更新定时任务的下次执行时间
         if (scheduledTaskId && scanDto.isScheduled && scanDto.scheduleType) {
@@ -251,7 +290,7 @@ export class ScanService {
       console.error(`Error during scan and analysis:`, e);
       await this.prisma.taskExecution.update({
         where: { id: taskExecutionId },
-        data: { status: 'failed', stage: '任务失败' }
+        data: { status: 'failed', stage: '任务失败' },
       });
     }
   }
@@ -261,10 +300,12 @@ export class ScanService {
     assetId: string,
     maxDepth: number = 3,
     taskExecutionId: string | undefined,
-    proxy: string | undefined
+    proxy: string | undefined,
   ) {
     const visited = new Set<string>();
-    const queue: { url: string; depth: number }[] = [{ url: startUrl, depth: 0 }];
+    const queue: { url: string; depth: number }[] = [
+      { url: startUrl, depth: 0 },
+    ];
     const urls: string[] = [];
     let homepageContent = '';
     let homepageTitle = '';
@@ -310,7 +351,8 @@ export class ScanService {
         if (homepageContent === '' && depth === 0) {
           homepageContent = content;
           homepageTitle = title;
-          homepageBase64Image = metaData.image_base64 || response.screenshotBase64 || '';
+          homepageBase64Image =
+            metaData.image_base64 || response.screenshotBase64 || '';
           homepageMetaData = meta || {};
 
           await this.prisma.taskExecution.update({
@@ -319,7 +361,11 @@ export class ScanService {
           });
           faviconUrl = await this.fetchFavicon(url);
 
-          const techInfo = await this.techCrawlService.getTechInfo(url, { headless: true, timeout: 30000, proxy });
+          const techInfo = await this.techCrawlService.getTechInfo(url, {
+            headless: true,
+            timeout: 30000,
+            proxy,
+          });
           techReport = this.techCrawlService.generateReport(techInfo);
 
           await this.prisma.taskExecution.update({
@@ -329,7 +375,12 @@ export class ScanService {
         }
 
         // 处理新域名和关联
-        await this.handleNewDomainAndAssociation(taskExecutionId, assetId, startUrl, url);
+        await this.handleNewDomainAndAssociation(
+          taskExecutionId,
+          assetId,
+          startUrl,
+          url,
+        );
 
         const cleanHtmlContent = htmlContent.replace(/\x00/g, '');
         const { vulnerabilities } = response;
@@ -360,11 +411,12 @@ export class ScanService {
 
         const links = response.links || [];
         queue.push(
-          ...links.map(link => {
-            return { url: link, depth: depth + 1 };
-          }).filter(Boolean) as { url: string; depth: number }[]
+          ...(links
+            .map((link) => {
+              return { url: link, depth: depth + 1 };
+            })
+            .filter(Boolean) as { url: string; depth: number }[]),
         );
-
       } catch (e) {
         console.error(`Error crawling ${url}:`, e);
         continue;
@@ -395,10 +447,14 @@ export class ScanService {
     }
 
     // 生成 sitemap.xml
-    const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-      urls.map(u => `  <url><loc>${u}</loc></url>`).join('\n') +
+    const sitemapXml =
+      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      urls.map((u) => `  <url><loc>${u}</loc></url>`).join('\n') +
       '\n</urlset>';
-    await this.prisma.asset.update({ where: { id: assetId }, data: { sitemapXml } });
+    await this.prisma.asset.update({
+      where: { id: assetId },
+      data: { sitemapXml },
+    });
 
     return {
       urls,
@@ -447,7 +503,7 @@ export class ScanService {
     }
 
     const execution = await this.prisma.taskExecution.create({
-      data: executionData
+      data: executionData,
     });
 
     return { taskExecutionId: execution.id, scheduledTaskId, taskName };
@@ -471,7 +527,7 @@ export class ScanService {
           scanRate: data.scanRate,
           scheduleType: data.scheduleType,
           isActive: true,
-        }
+        },
       });
       return { data: task, error: null };
     } catch (error) {
@@ -480,7 +536,10 @@ export class ScanService {
     }
   }
 
-  private async updateNextRunTime(scheduledTaskId: string, scheduleType: string) {
+  private async updateNextRunTime(
+    scheduledTaskId: string,
+    scheduleType: string,
+  ) {
     const now = new Date();
     let nextRunAt: Date;
 
@@ -503,7 +562,7 @@ export class ScanService {
 
     await this.prisma.scheduledTask.update({
       where: { id: scheduledTaskId },
-      data: { nextRunAt, lastRunAt: now }
+      data: { nextRunAt, lastRunAt: now },
     });
   }
 
@@ -519,21 +578,25 @@ export class ScanService {
     taskExecutionId: string | undefined,
     sourceAssetId: string,
     sourceUrl: string,
-    targetUrl: string
+    targetUrl: string,
   ) {
     console.log(`Handling url association: ${sourceUrl} -> ${targetUrl}`);
 
     const sourceDomain = this.getDomainFromUrl(sourceUrl);
     const targetDomain = this.getDomainFromUrl(targetUrl);
 
-    console.log(`Handling new domain association: ${sourceDomain} -> ${targetDomain}`);
+    console.log(
+      `Handling new domain association: ${sourceDomain} -> ${targetDomain}`,
+    );
 
     if (sourceDomain === targetDomain) {
       console.log(`Source and target domains are the same: ${sourceDomain}`);
       return;
     }
 
-    let targetAsset = await this.prisma.asset.findUnique({ where: { url: targetUrl } });
+    let targetAsset = await this.prisma.asset.findUnique({
+      where: { url: targetUrl },
+    });
     if (!targetAsset) {
       const resolvedIp = await this.getIpFromDomain(targetDomain);
       targetAsset = await this.prisma.asset.create({
@@ -543,17 +606,21 @@ export class ScanService {
           taskName: '',
           domain: targetDomain,
           ip: resolvedIp || '',
-          status: 'Active'
-        }
+          status: 'Active',
+        },
       });
     }
 
     if (!targetAsset) {
-      console.log(`Failed to find or create asset for domain: ${targetDomain}.`);
+      console.log(
+        `Failed to find or create asset for domain: ${targetDomain}.`,
+      );
       return;
     }
 
-    console.log(`Create assetAssociation Source domain: ${sourceDomain}, Target domain: ${targetDomain}`);
+    console.log(
+      `Create assetAssociation Source domain: ${sourceDomain}, Target domain: ${targetDomain}`,
+    );
 
     await this.prisma.assetAssociation.create({
       data: {
@@ -561,7 +628,7 @@ export class ScanService {
         targetAssetId: targetAsset.id,
         sourceUrl,
         targetUrl,
-      }
+      },
     });
     return targetAsset;
   }
@@ -592,37 +659,48 @@ export class ScanService {
     }
   }
 
-  private async scanOpenPorts(host: string, ports: number[], timeout = 1000): Promise<number[]> {
+  private async scanOpenPorts(
+    host: string,
+    ports: number[],
+    timeout = 1000,
+  ): Promise<number[]> {
     const openPorts: number[] = [];
     const ip = await this.getIpFromDomain(host);
     if (!ip) return [];
 
     await Promise.all(
-      ports.map(port =>
-        new Promise<void>((resolve) => {
-          const socket = new net.Socket();
-          let isOpen = false;
-          socket.setTimeout(timeout);
+      ports.map(
+        (port) =>
+          new Promise<void>((resolve) => {
+            const socket = new net.Socket();
+            let isOpen = false;
+            socket.setTimeout(timeout);
 
-          socket.once('connect', () => {
-            isOpen = true;
-            openPorts.push(port);
-            socket.destroy();
-          });
-          socket.once('timeout', () => socket.destroy());
-          socket.once('error', () => socket.destroy());
-          socket.once('close', () => resolve());
+            socket.once('connect', () => {
+              isOpen = true;
+              openPorts.push(port);
+              socket.destroy();
+            });
+            socket.once('timeout', () => socket.destroy());
+            socket.once('error', () => socket.destroy());
+            socket.once('close', () => resolve());
 
-          socket.connect(port, ip);
-        })
-      )
+            socket.connect(port, ip);
+          }),
+      ),
     );
     return openPorts;
   }
 
   private getActiveIPsFromRange(ipRange: string): string[] {
     console.log(`Simulating scan for IP range: ${ipRange}`);
-    const ips = ['192.168.1.23', '192.168.1.58', '192.168.1.102', '192.168.1.174', '192.168.1.219'];
+    const ips = [
+      '192.168.1.23',
+      '192.168.1.58',
+      '192.168.1.102',
+      '192.168.1.174',
+      '192.168.1.219',
+    ];
     const count = Math.floor(Math.random() * 3) + 3;
     return ips.sort(() => 0.5 - Math.random()).slice(0, count);
   }
