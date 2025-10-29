@@ -734,4 +734,40 @@ export class ScanService {
       return null;
     }
   }
+
+  async getTaskExecutionById(id: string) {
+    try {
+      const execution = await this.prisma.taskExecution.findUnique({
+        where: { id },
+        select: {
+          stage: true,
+          status: true,
+          startTime: true,
+          endTime: true,
+          duration: true,
+          assetsFound: true,
+          assets: {
+            orderBy: {
+              updatedAt: 'desc'
+            },
+            include: {
+              apiEndpoints: true,
+              webpages: {
+                select: {
+                  title: true,
+                  url: true,
+                  content: true,
+                }
+              },
+            }
+          },
+        }
+      });
+
+      return execution;
+    } catch (error) {
+      console.error('Error fetching task execution:', error);
+      throw error;
+    }
+  }
 }
