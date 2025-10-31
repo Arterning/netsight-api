@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrawlService } from '../crawl/crawl.service';
 import { TechCrawlService } from '../tech-crawl/tech-crawl.service';
+import { AIService } from '../ai/ai.service';
 import { ScanDto, CrawlDepth } from './dto/scan.dto';
 import { URL } from 'url';
 import * as dns from 'dns/promises';
@@ -20,6 +21,7 @@ export class ScanService {
     private prisma: PrismaService,
     private crawlService: CrawlService,
     private techCrawlService: TechCrawlService,
+    private aiService: AIService,
   ) {}
 
   async scanAndAnalyze(
@@ -175,25 +177,26 @@ export class ScanService {
           });
         }
 
-        // 分析内容 - TODO: 这里需要接入你的AI服务
-        const content =
-          homepageTitle + allPageContent
-            ? allPageContent
-                .replace(/<style[^>]*>.*?<\/style>/g, ' ')
-                .replace(/<script[^>]*>.*?<\/script>/g, ' ')
-                .replace(/<[^>]*>/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim()
-            : '';
+        // 分析内容 - 清理HTML标签和多余空白
+        const content = allPageContent
+          ? allPageContent
+              .replace(/<style[^>]*>.*?<\/style>/g, ' ')
+              .replace(/<script[^>]*>.*?<\/script>/g, ' ')
+              .replace(/<[^>]*>/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+          : '';
 
-        // Placeholder for AI analysis - you need to implement these
-        const analysisResult = `网站分析: ${homepageTitle}`;
-        const businessValueResult = {
-          valuePropositionScore: 50,
-          analysis: '业务价值分析',
-          keywords: '关键词1, 关键词2',
-        };
-        const associationResult = 'IP关联分析结果';
+        // 使用AI服务进行分析
+        const aiAnalysisResult = await this.aiService.analyzeWebsite(
+          homepageTitle,
+          content,
+          displayUrl,
+        );
+
+        const analysisResult = aiAnalysisResult.analysisResult;
+        const businessValueResult = aiAnalysisResult.businessValueResult;
+        const associationResult = aiAnalysisResult.associationResult;
 
         // 3. 分析结束后,更新 stage
         if (taskExecutionId) {

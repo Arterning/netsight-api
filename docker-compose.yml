@@ -32,6 +32,13 @@ services:
     environment:
       DATABASE_URL: postgresql://netsight_user:netsight_password@postgres:5432/netsight?schema=public
       NODE_ENV: production
+      # AI服务配置 - 根据需要修改这些值
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL_NAME: ${AI_MODEL_NAME:-gpt-4}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_MAX_TOKENS: ${AI_MAX_TOKENS:-4000}
+      AI_TEMPERATURE: ${AI_TEMPERATURE:-0.7}
     depends_on:
       postgres:
         condition: service_healthy
