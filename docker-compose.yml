@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:16-alpine
+    container_name: netsight-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: netsight_user
+      POSTGRES_PASSWORD: netsight_password
+      POSTGRES_DB: netsight
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netsight_user -d netsight"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # NestJS应用
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: netsight-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://netsight_user:netsight_password@postgres:5432/netsight?schema=public
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && npm run start:prod"
+    volumes:
+      # 如果需要持久化上传文件等，可以添加volume
+      - ./uploads:/app/uploads
+
+volumes:
+  postgres_data:
+    driver: local
