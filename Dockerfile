@@ -1,6 +1,11 @@
 # 使用官方Node.js镜像作为基础镜像
 FROM node:20-slim
 
+# 替换 Debian 源为阿里云（适用于 Debian 12/bookworm，node:20-slim 基于此版本）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list && \
+    sed -i 's|security.debian.org|mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list
+
+
 # 安装Puppeteer所需的依赖
 RUN apt-get update && apt-get install -y \
     wget \
