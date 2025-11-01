@@ -25,6 +25,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: netsight-api:latest
     container_name: netsight-api
     restart: unless-stopped
     ports:
