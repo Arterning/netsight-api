@@ -1,0 +1,62 @@
+name: Docker Build and Package
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          tags: netsight-api:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Save Docker image to tar
+        run: |
+          docker save netsight-api:latest -o netsight-api-image.tar
+          ls -lh netsight-api-image.tar
+
+      - name: Compress tar file
+        run: |
+          gzip netsight-api-image.tar
+          ls -lh netsight-api-image.tar.gz
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: netsight-api-docker-image
+          path: netsight-api-image.tar.gz
+          retention-days: 7
+          compression-level: 0
+
+      - name: Generate build summary
+        run: |
+          echo "## Docker Build Summary :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Name**: netsight-api:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact Name**: netsight-api-docker-image" >> $GITHUB_STEP_SUMMARY
+          echo "- **File Size**: $(du -h netsight-api-image.tar.gz | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Retention**: 7 days" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Usage Instructions" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "# Download and extract the artifact" >> $GITHUB_STEP_SUMMARY
+          echo "gunzip netsight-api-image.tar.gz" >> $GITHUB_STEP_SUMMARY
+          echo "docker load -i netsight-api-image.tar" >> $GITHUB_STEP_SUMMARY
+          echo "docker images | grep netsight-api" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
