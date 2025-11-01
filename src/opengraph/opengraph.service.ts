@@ -15,6 +15,11 @@ export class OpenGraphService {
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--no-zygote',
+          '--single-process',
+          '--disable-background-networking',
+          '--disable-renderer-backgrounding',
         ],
       };
 
@@ -26,16 +31,17 @@ export class OpenGraphService {
       const page = await browser.newPage();
 
       // 设置超时时间
-      await page.setDefaultNavigationTimeout(30000);
-      await page.setDefaultTimeout(30000);
+      await page.setDefaultNavigationTimeout(60000);
+      await page.setDefaultTimeout(60000);
 
       // 设置用户代理
       await page.setUserAgent(
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       );
 
-      // 访问页面
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+      // 访问页面 - 使用 domcontentloaded 替代 networkidle2
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+
 
       // 提取 OpenGraph 和其他 meta 标签信息
       const metaData = await page.evaluate(() => {

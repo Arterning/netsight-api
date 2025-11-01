@@ -48,11 +48,30 @@ export class CrawlService {
   async crawlPage(url: string, proxy?: string): Promise<CrawlPageResult> {
     console.log(`Ready to Crawling ${url}`);
 
-    // 基础参数数组
+    // 基础参数数组 - 针对 Docker 容器优化
     const args = [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage'
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--disable-extensions',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process', // 在容器中使用单进程模式
+      '--disable-background-networking',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-component-extensions-with-background-pages',
+      '--disable-features=TranslateUI,BlinkGenPropertyTrees',
+      '--disable-ipc-flooding-protection',
+      '--disable-renderer-backgrounding',
+      '--enable-features=NetworkService,NetworkServiceInProcess',
+      '--force-color-profile=srgb',
+      '--hide-scrollbars',
+      '--metrics-recording-only',
+      '--mute-audio',
     ];
 
     // 当proxy存在且不为空字符串时,添加代理参数
@@ -168,7 +187,12 @@ export class CrawlService {
     console.log(`Visiting ${url}`);
     let response: HTTPResponse | null = null;
     try {
-      response = await page.goto(url, { waitUntil: 'networkidle0' });
+      // 使用 domcontentloaded 替代 networkidle0，更适合容器环境
+      // 同时增加超时时间到 60 秒
+      response = await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: 60000
+      });
     } catch (error) {
       console.error(`Failed to navigate to ${url}:`, error);
       await browser.close();

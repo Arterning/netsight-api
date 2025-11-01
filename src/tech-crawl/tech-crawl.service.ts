@@ -64,8 +64,9 @@ export class TechCrawlService {
       const { browser: br, page } = await this.initBrowser(config);
       browser = br;
 
+      // 使用 domcontentloaded 替代 networkidle0，更适合容器环境
       await page.goto(url, {
-        waitUntil: 'networkidle0',
+        waitUntil: 'domcontentloaded',
         timeout: config.timeout
       });
 
@@ -94,12 +95,19 @@ export class TechCrawlService {
   }
 
   private async initBrowser(config: Required<TechOptions>): Promise<{ browser: Browser; page: Page }> {
+    // 针对 Docker 容器优化的参数
     const args = [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-software-rasterizer',
       '--disable-web-security',
       '--disable-features=VizDisplayCompositor',
+      '--no-zygote',
+      '--single-process',
+      '--disable-background-networking',
+      '--disable-renderer-backgrounding',
     ];
 
     if (config.proxy && config.proxy.trim() !== '') {
