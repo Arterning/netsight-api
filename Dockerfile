@@ -34,30 +34,33 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
+# 启用 corepack 并安装 pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 # 设置工作目录
 WORKDIR /app
 
-# 复制package.json和package-lock.json
-COPY package*.json ./
+# 复制 package.json 和 pnpm-lock.yaml
+COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma/
 
 # 安装依赖
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 
 # 安装Puppeteer的Chrome浏览器
-RUN npx puppeteer browsers install chrome
+RUN pnpm exec puppeteer browsers install chrome
 
 # 复制应用代码
 COPY . .
 
 # 生成Prisma客户端
-RUN npx prisma generate
+RUN pnpm exec prisma generate
 
 # 构建应用
-RUN npm run build
+RUN pnpm run build
 
 # 暴露端口（根据你的应用端口，默认NestJS是3000）
 EXPOSE 3000
 
 # 启动应用
-CMD ["npm", "run", "start:prod"]
+CMD ["pnpm", "run", "start:prod"]
