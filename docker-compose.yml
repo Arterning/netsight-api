@@ -43,7 +43,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "pnpm exec prisma migrate deploy && pnpm run start:prod"
+    command: sh -c "pnpm exec prisma db push && pnpm run start:prod"
     volumes:
       # 如果需要持久化上传文件等，可以添加volume
       - ./uploads:/app/uploads
