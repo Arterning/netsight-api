@@ -130,3 +130,11 @@ model ApiEndpoint {
   @@index([assetId])
   @@index([url])
 }
+
+model Knowledge {
+  id        String   @id @default(cuid())
+  title     String   // 知识库条目标题
+  content   String   // 知识库条目内容
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

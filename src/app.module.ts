@@ -7,6 +7,8 @@ import { CrawlModule } from './crawl/crawl.module';
 import { TechCrawlModule } from './tech-crawl/tech-crawl.module';
 import { ScanModule } from './scan/scan.module';
 import { OpenGraphModule } from './opengraph/opengraph.module';
+import { KnowledgeModule } from './knowledge/knowledge.module';
+import { AIModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { OpenGraphModule } from './opengraph/opengraph.module';
     TechCrawlModule,
     ScanModule,
     OpenGraphModule,
+    KnowledgeModule,
+    AIModule,
   ],
   controllers: [AppController],
   providers: [AppService],

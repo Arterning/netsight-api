@@ -251,4 +251,176 @@ export class AIService {
       associationResult: '暂无关联分析',
     };
   }
+
+  // AI对话方法（基于知识库上下文）
+  async chat(
+    question: string,
+    knowledgeContext: string,
+  ): Promise<{ answer: string }> {
+    if (!this.config.apiKey) {
+      this.logger.warn('AI API key not configured');
+      return {
+        answer: '抱歉，AI服务未配置，无法进行对话。请联系管理员配置AI API密钥。',
+      };
+    }
+
+    try {
+      switch (this.config.provider) {
+        case 'openai':
+          return await this.chatWithOpenAI(question, knowledgeContext);
+        case 'deepseek':
+          return await this.chatWithDeepSeek(question, knowledgeContext);
+        case 'claude':
+          return await this.chatWithClaude(question, knowledgeContext);
+        default:
+          this.logger.warn(`Unknown AI provider: ${this.config.provider}`);
+          return {
+            answer: '抱歉，不支持的AI提供商配置。',
+          };
+      }
+    } catch (error) {
+      this.logger.error('AI chat failed', error);
+      return {
+        answer: '抱歉，AI对话服务暂时不可用，请稍后再试。',
+      };
+    }
+  }
+
+  private async chatWithOpenAI(
+    question: string,
+    knowledgeContext: string,
+  ): Promise<{ answer: string }> {
+    try {
+      const systemPrompt = `你是一个智能助手。你的任务是根据提供的知识库内容回答用户的问题。
+
+知识库内容：
+${knowledgeContext}
+
+请基于以上知识库内容回答用户的问题。如果知识库中没有相关信息，请明确告知用户。回答要准确、专业、友好。`;
+
+      const response = await axios.post(
+        `${this.config.baseURL || 'https://api.openai.com/v1'}/chat/completions`,
+        {
+          model: this.config.modelName,
+          messages: [
+            {
+              role: 'system',
+              content: systemPrompt,
+            },
+            {
+              role: 'user',
+              content: question,
+            },
+          ],
+          temperature: this.config.temperature,
+          max_tokens: this.config.maxTokens,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.config.apiKey}`,
+          },
+          timeout: 60000,
+        },
+      );
+
+      return {
+        answer: response.data.choices[0].message.content.trim(),
+      };
+    } catch (error) {
+      this.logger.error('OpenAI chat API call failed', error);
+      throw error;
+    }
+  }
+
+  private async chatWithDeepSeek(
+    question: string,
+    knowledgeContext: string,
+  ): Promise<{ answer: string }> {
+    try {
+      const systemPrompt = `你是一个智能助手。你的任务是根据提供的知识库内容回答用户的问题。
+
+知识库内容：
+${knowledgeContext}
+
+请基于以上知识库内容回答用户的问题。如果知识库中没有相关信息，请明确告知用户。回答要准确、专业、友好。`;
+
+      const response = await axios.post(
+        `${this.config.baseURL || 'https://api.deepseek.com/v1'}/chat/completions`,
+        {
+          model: this.config.modelName,
+          messages: [
+            {
+              role: 'system',
+              content: systemPrompt,
+            },
+            {
+              role: 'user',
+              content: question,
+            },
+          ],
+          temperature: this.config.temperature,
+          max_tokens: this.config.maxTokens,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.config.apiKey}`,
+          },
+          timeout: 60000,
+        },
+      );
+
+      return {
+        answer: response.data.choices[0].message.content.trim(),
+      };
+    } catch (error) {
+      this.logger.error('DeepSeek chat API call failed', error);
+      throw error;
+    }
+  }
+
+  private async chatWithClaude(
+    question: string,
+    knowledgeContext: string,
+  ): Promise<{ answer: string }> {
+    try {
+      const systemPrompt = `你是一个智能助手。你的任务是根据提供的知识库内容回答用户的问题。
+
+知识库内容：
+${knowledgeContext}
+
+请基于以上知识库内容回答用户的问题。如果知识库中没有相关信息，请明确告知用户。回答要准确、专业、友好。`;
+
+      const response = await axios.post(
+        `${this.config.baseURL || 'https://api.anthropic.com/v1'}/messages`,
+        {
+          model: this.config.modelName,
+          max_tokens: this.config.maxTokens,
+          temperature: this.config.temperature,
+          messages: [
+            {
+              role: 'user',
+              content: `${systemPrompt}\n\n用户问题: ${question}`,
+            },
+          ],
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.config.apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          timeout: 60000,
+        },
+      );
+
+      return {
+        answer: response.data.content[0].text.trim(),
+      };
+    } catch (error) {
+      this.logger.error('Claude chat API call failed', error);
+      throw error;
+    }
+  }
 }
