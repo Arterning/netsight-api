@@ -38,6 +38,7 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL_NAME: ${AI_MODEL_NAME:-gpt-4}
       AI_BASE_URL: ${AI_BASE_URL:-}
+      API_KEY: ${API_KEY:-}
       # AI_MAX_TOKENS: ${AI_MAX_TOKENS:-4000}
       # AI_TEMPERATURE: ${AI_TEMPERATURE:-0.7}
     depends_on:
