@@ -27,11 +27,16 @@ export class ApiKeyGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const apiKey = request.headers['x-api-key'];
+    let apiKey = request.headers['x-api-key'] || request.headers['Authorization'];
     const validApiKey = this.configService.get<string>('API_KEY');
 
     if (!apiKey) {
       throw new UnauthorizedException('API key is missing');
+    }
+
+    // 去掉 Bearer 前缀
+    if (apiKey.startsWith('Bearer ')) {
+      apiKey = apiKey.slice('Bearer '.length);
     }
 
     if (apiKey !== validApiKey) {
