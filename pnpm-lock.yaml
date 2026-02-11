@@ -35,6 +35,9 @@ importers:
       class-validator:
         specifier: ^0.14.2
         version: 0.14.2
+      https-proxy-agent:
+        specifier: ^7.0.6
+        version: 7.0.6
       playwright:
         specifier: ^1.49.1
         version: 1.58.2

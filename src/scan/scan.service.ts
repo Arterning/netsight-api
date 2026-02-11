@@ -24,6 +24,25 @@ export class ScanService {
     private aiService: AIService,
   ) {}
 
+  // --- 修改点：新增第 32-48 行 递归清洗方法 ---
+  private sanitize<T>(data: T): T {
+    if (typeof data === 'string') {
+      return data.replace(/\x00/g, '') as unknown as T;
+    }
+    if (Array.isArray(data)) {
+      return data.map((item) => this.sanitize(item)) as unknown as T;
+    }
+    if (typeof data === 'object' && data !== null) {
+      const sanitizedObj: any = {};
+      for (const [key, value] of Object.entries(data)) {
+        sanitizedObj[key] = this.sanitize(value);
+      }
+      return sanitizedObj as T;
+    }
+    return data;
+  }
+  // ------------------------------------
+
   async scanAndAnalyze(
     scanDto: ScanDto,
   ): Promise<{ taskExecutionId: string | undefined; error: string | null }> {
@@ -116,10 +135,13 @@ export class ScanService {
           taskName: taskName,
           taskExecutionId: taskExecutionId,
         };
+
+        // --- 修改点：Asset Upsert 清洗 ---
+        const sanitizedAssetData = this.sanitize(assetData);
         const upsertedAsset = await this.prisma.asset.upsert({
           where: { url: displayUrl },
-          update: assetData,
-          create: assetData,
+          update: sanitizedAssetData,
+          create: sanitizedAssetData,
         });
         assetId = upsertedAsset.id;
 
@@ -221,10 +243,10 @@ export class ScanService {
           description = homepageTitle;
         }
 
-        // 更新 asset 的分析信息
+        // --- 修改点：Asset 更新清洗 ---
         await this.prisma.asset.update({
           where: { id: assetId },
-          data: {
+          data: this.sanitize({
             name: homepageTitle,
             description,
             techReport,
@@ -240,7 +262,7 @@ export class ScanService {
             imageBase64: homepageBase64Image || null,
             metadata: homepageMetaData || null,
             favicon: faviconUrl,
-          },
+          }),
         });
 
         return {
@@ -332,7 +354,7 @@ export class ScanService {
           data: { stage: `获取${url}的元数据` },
         });
 
-        const metaData = await this.crawlService.crawlMetaData(url);
+        const metaData = await this.crawlService.crawlMetaData(url, proxy);
         const { image_base64, ...meta } = metaData;
 
         await this.prisma.taskExecution.update({
@@ -388,9 +410,10 @@ export class ScanService {
         const cleanHtmlContent = htmlContent.replace(/\x00/g, '');
         const { vulnerabilities } = response;
 
+        // --- 修改点：Webpage 清洗 ---
         await this.prisma.webpage.upsert({
           where: { assetId_url: { assetId, url } },
-          update: {
+          update: this.sanitize({
             htmlContent: cleanHtmlContent,
             content: content,
             title,
@@ -398,8 +421,8 @@ export class ScanService {
             vulnerabilities,
             metadata: meta || null,
             imageBase64: image_base64 || null,
-          },
-          create: {
+          }),
+          create: this.sanitize({
             assetId,
             url,
             htmlContent: cleanHtmlContent,
@@ -409,7 +432,7 @@ export class ScanService {
             vulnerabilities,
             metadata: meta || null,
             imageBase64: image_base64 || null,
-          },
+          }),
         });
 
         const links = response.links || [];
@@ -426,11 +449,11 @@ export class ScanService {
       }
     }
 
-    // 保存所有API请求到数据库
+    // --- 修改点：ApiEndpoint 清洗 ---
     for (const apiRequest of allApiRequests) {
       try {
         await this.prisma.apiEndpoint.create({
-          data: {
+          data: this.sanitize({
             url: apiRequest.url,
             method: apiRequest.method,
             type: apiRequest.type,
@@ -442,7 +465,7 @@ export class ScanService {
             duration: apiRequest.duration,
             fromPage: apiRequest.fromPage,
             assetId: assetId,
-          },
+          }),
         });
       } catch (e) {
         console.error('Error saving API endpoint:', e);
@@ -521,14 +544,16 @@ export class ScanService {
     scheduleType: string;
   }) {
     try {
+      // --- 修改点：ScheduledTask 清洗（解决 code 22021） ---
+      const sanitizedData = this.sanitize(data);
       const task = await this.prisma.scheduledTask.create({
         data: {
-          name: data.taskName,
-          description: data.description,
-          domain: data.domain,
-          ipRange: data.ipRange,
-          scanRate: data.scanRate,
-          scheduleType: data.scheduleType,
+          name: sanitizedData.taskName,
+          description: sanitizedData.description,
+          domain: sanitizedData.domain,
+          ipRange: sanitizedData.ipRange,
+          scanRate: sanitizedData.scanRate,
+          scheduleType: sanitizedData.scheduleType,
           isActive: true,
         },
       });

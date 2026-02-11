@@ -5,6 +5,7 @@ import { chromium, Page as PlaywrightPage, Response as PlaywrightResponse } from
 import { URL } from 'url';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 interface Vulnerability {
   type: string;
@@ -45,6 +46,27 @@ interface CrawlPageResult {
   apiRequests: ApiRequest[];
 }
 
+interface ProxyInfo {
+  server: string;  
+  username?: string;
+  password?: string;
+}
+
+
+function extractProxyInfo(proxyUrl: string): ProxyInfo | null {
+  try {
+    const parsed = new URL(proxyUrl);
+    return {
+      server: `${parsed.protocol}//${parsed.host}`,
+      username: decodeURIComponent(parsed.username),
+      password: decodeURIComponent(parsed.password) || undefined
+    };
+  } catch (e) {
+    console.error("代理 URL 格式无效:", proxyUrl);
+    return null;
+  }
+}
+
 @Injectable()
 export class CrawlService {
   constructor(private configService: ConfigService) {}
@@ -62,25 +84,42 @@ export class CrawlService {
 
   private async crawlPageWithPuppeteer(url: string, proxy?: string, headless?: boolean): Promise<CrawlPageResult> {
     console.log(`Ready to Crawling ${url}`);
+    const proxyInfo = proxy ? extractProxyInfo(proxy) : null;
 
     // 基础参数数组
     const args = [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage'
+      '--disable-dev-shm-usage',
+      '--ignore-certificate-errors',
+      '--ignore-certificate-errors-spki-list', // 修改 1：增强证书忽略
+      '--allow-running-insecure-content',
     ];
 
     // 当proxy存在且不为空字符串时,添加代理参数
-    if (proxy && proxy.trim() !== '') {
+    if (proxy && proxy.trim() !== '' && proxyInfo) {
       console.log(`Using proxy: ${proxy}`);
-      args.push(`--proxy-server=${proxy}`);
+      args.push(`--proxy-server=${proxyInfo.server}`);
     }
 
     const browser = await puppeteer.launch({
       args: args,
-      headless: headless !== undefined ? headless : true,
+      headless: true
     });
     const page = await browser.newPage();
+    // 设置请求头，确保使用 UTF-8 编码
+    await page.setExtraHTTPHeaders({
+        'Accept-Charset': 'utf-8'
+    });
+
+    if (proxyInfo?.username && proxyInfo?.password) {
+      console.log(`检测到认证信息，正在为页面配置代理登录: ${proxyInfo.username}`);
+      await page.authenticate({
+        username: proxyInfo.username,
+        password: proxyInfo.password
+      });
+    }
+
     await page.setViewport({ width: 1920, height: 1080 });
 
     await page.setUserAgent(
@@ -213,6 +252,8 @@ export class CrawlService {
     let base64Image = '';
     try {
       base64Image = await page.screenshot({ encoding: 'base64', type: 'png', fullPage: true });
+      // 新增调试日志：打印 Base64 字符串长度
+      console.log(`[截图调试] 图片生成成功，Base64 字符长度: ${base64Image.length}`);
     } catch (error) {
       console.error(`Failed to take screenshot of ${finalUrl}:`, error);
     }
@@ -962,12 +1003,23 @@ export class CrawlService {
     };
   }
 
-  async crawlMetaData(url: string): Promise<Record<string, string>> {
+  async crawlMetaData(url: string, proxy?: string): Promise<Record<string, string>> {
     try {
+
+      let agent: any = null;
+      if (proxy && proxy.trim() !== '') {
+        agent = new HttpsProxyAgent(proxy);
+        (agent as any).rejectUnauthorized = false; // 解决 SSL 证书过期
+      }
+
       const response = await axios.get(url, {
+        httpsAgent: agent,
+        httpAgent: agent,
+        proxy: false,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; MetadataScraper/1.0)',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
+        timeout: 10000,
       });
       const html = response.data;
 
@@ -985,21 +1037,22 @@ export class CrawlService {
       if (metadata.image) {
         try {
           const imageResponse = await axios.get(metadata.image, {
+            httpsAgent: agent, // 修改：下载图片也通过该 Agent
             responseType: 'arraybuffer',
+            timeout: 10000,//增加：超时配置
           });
           const base64Image = Buffer.from(imageResponse.data, 'binary').toString('base64');
           metadata.image_base64 = `data:${imageResponse.headers['content-type']};base64,${base64Image}`;
         } catch (error) {
-          console.error('Failed to download image:', error);
+          console.error('Failed to download image:', error.message);
           metadata.image_error = 'Image download failed';
-          metadata.error = 'Failed to fetch image';
           metadata.image_base64 = '';
         }
       }
 
       return metadata;
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error:', error.message);
       return {
         image_base64: '',
         error: 'Failed to fetch metadata',
