@@ -51,15 +51,16 @@ export class CrawlService {
 
   async crawlPage(url: string, proxy?: string): Promise<CrawlPageResult> {
     const crawlerEngine = this.configService.get<string>('CRAWLER_ENGINE', 'puppeteer').toLowerCase();
+    const crawlHeadless = this.configService.get<string>('CRAWLER_HEADLESS', 'true').toLowerCase() === 'true';
 
     if (crawlerEngine === 'playwright') {
-      return this.crawlPageWithPlaywright(url, proxy);
+      return this.crawlPageWithPlaywright(url, proxy, crawlHeadless);
     } else {
-      return this.crawlPageWithPuppeteer(url, proxy);
+      return this.crawlPageWithPuppeteer(url, proxy, crawlHeadless);
     }
   }
 
-  private async crawlPageWithPuppeteer(url: string, proxy?: string): Promise<CrawlPageResult> {
+  private async crawlPageWithPuppeteer(url: string, proxy?: string, headless?: boolean): Promise<CrawlPageResult> {
     console.log(`Ready to Crawling ${url}`);
 
     // 基础参数数组
@@ -77,7 +78,7 @@ export class CrawlService {
 
     const browser = await puppeteer.launch({
       args: args,
-      headless: true
+      headless: headless !== undefined ? headless : true,
     });
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080 });
@@ -517,11 +518,11 @@ export class CrawlService {
     };
   }
 
-  private async crawlPageWithPlaywright(url: string, proxy?: string): Promise<CrawlPageResult> {
+  private async crawlPageWithPlaywright(url: string, proxy?: string, headless?: boolean): Promise<CrawlPageResult> {
     console.log(`Ready to Crawling ${url} with Playwright`);
 
     const launchOptions: any = {
-      headless: true,
+      headless: headless !== undefined ? headless : true,
     };
 
     // 当proxy存在且不为空字符串时,添加代理参数
